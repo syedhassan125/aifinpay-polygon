@@ -266,4 +266,212 @@ describe("AiFinPay Protocol — Full Test Suite (v1.1 Pyth Oracle)", function ()
     });
   });
 
+  // ─────────────────────────────────────────────────────────────
+  // 8. AiFinPaySplitter — standalone fee-on-top contract
+  //   Deployed alongside AiFinPayCore (which is mainnet-immutable).
+  // ─────────────────────────────────────────────────────────────
+  describe("AiFinPaySplitter (fee-on-top)", function () {
+    const ONE_ETHER  = ethers.parseEther("1.0");
+    const TREASURY_BPS    = 100; // 1.00%
+    const IP_CREATOR_BPS  = 1;   // 0.01%
+    let splitter;
+
+    beforeEach(async function () {
+      const Splitter = await ethers.getContractFactory("AiFinPaySplitter");
+      splitter = await Splitter.deploy(
+        owner.address,
+        treasury.address,
+        TREASURY_BPS,
+        IP_CREATOR_BPS,
+      );
+    });
+
+    it("constructor stores config", async function () {
+      expect(await splitter.treasury()).to.equal(treasury.address);
+      expect(await splitter.treasuryBps()).to.equal(TREASURY_BPS);
+      expect(await splitter.ipCreatorBps()).to.equal(IP_CREATOR_BPS);
+      expect(await splitter.isPaused()).to.equal(false);
+    });
+
+    it("constructor rejects zero treasury", async function () {
+      const Splitter = await ethers.getContractFactory("AiFinPaySplitter");
+      await expect(
+        Splitter.deploy(owner.address, ethers.ZeroAddress, TREASURY_BPS, IP_CREATOR_BPS)
+      ).to.be.revertedWith("Zero treasury");
+    });
+
+    it("constructor rejects fees totalling >= 100%", async function () {
+      const Splitter = await ethers.getContractFactory("AiFinPaySplitter");
+      await expect(
+        Splitter.deploy(owner.address, treasury.address, 9999, 1)
+      ).to.be.revertedWith("Fees exceed 100%");
+    });
+
+    it("quoteSplit returns merchantAmount + 1.01% fees", async function () {
+      const [treasuryFee, creatorFee, total] = await splitter.quoteSplit(ONE_ETHER);
+      expect(treasuryFee).to.equal(ethers.parseEther("0.01"));
+      expect(creatorFee).to.equal(ethers.parseEther("0.0001"));
+      expect(total).to.equal(ethers.parseEther("1.0101"));
+    });
+
+    it("merchant receives the full quoted amount; treasury + creator get fees on top", async function () {
+      const merchantBefore  = await ethers.provider.getBalance(merchant.address);
+      const treasuryBefore  = await ethers.provider.getBalance(treasury.address);
+      const ipCreatorBefore = await ethers.provider.getBalance(ipCreator.address);
+
+      const merchantAmount = ONE_ETHER;
+      const [treasuryFee, creatorFee, total] = await splitter.quoteSplit(merchantAmount);
+
+      await splitter.connect(agent).b2bPayWithSplit(
+        merchant.address,
+        merchantAmount,
+        ipCreator.address,
+        "ord-1",
+        { value: total },
+      );
+
+      expect(await ethers.provider.getBalance(merchant.address) - merchantBefore)
+        .to.equal(merchantAmount);
+      expect(await ethers.provider.getBalance(treasury.address) - treasuryBefore)
+        .to.equal(treasuryFee);
+      expect(await ethers.provider.getBalance(ipCreator.address) - ipCreatorBefore)
+        .to.equal(creatorFee);
+    });
+
+    it("excess msg.value is refunded to caller", async function () {
+      const merchantAmount = ONE_ETHER;
+      const [, , total] = await splitter.quoteSplit(merchantAmount);
+      const overpay = total + ethers.parseEther("0.5");
+
+      const before = await ethers.provider.getBalance(agent.address);
+      const tx = await splitter.connect(agent).b2bPayWithSplit(
+        merchant.address, merchantAmount, ipCreator.address,
+        "ord-2", { value: overpay },
+      );
+      const receipt = await tx.wait();
+      const gasCost = receipt.gasUsed * receipt.gasPrice;
+      const after = await ethers.provider.getBalance(agent.address);
+
+      // Caller spent exactly `total + gas`, not `overpay + gas`.
+      expect(before - after).to.equal(total + gasCost);
+    });
+
+    it("zero feeRecipient routes creator slot to treasury", async function () {
+      const merchantAmount = ONE_ETHER;
+      const [treasuryFee, creatorFee, total] = await splitter.quoteSplit(merchantAmount);
+      const treasuryBefore = await ethers.provider.getBalance(treasury.address);
+
+      await splitter.connect(agent).b2bPayWithSplit(
+        merchant.address, merchantAmount, ethers.ZeroAddress,
+        "ord-3", { value: total },
+      );
+
+      // Treasury receives BOTH the protocol fee AND the unrouted creator fee.
+      expect(await ethers.provider.getBalance(treasury.address) - treasuryBefore)
+        .to.equal(treasuryFee + creatorFee);
+    });
+
+    it("rejects insufficient payment", async function () {
+      const merchantAmount = ONE_ETHER;
+      const [, , total] = await splitter.quoteSplit(merchantAmount);
+      await expect(
+        splitter.connect(agent).b2bPayWithSplit(
+          merchant.address, merchantAmount, ipCreator.address,
+          "ord-4", { value: total - 1n },
+        )
+      ).to.be.revertedWith("Insufficient payment");
+    });
+
+    it("rejects zero merchant address", async function () {
+      await expect(
+        splitter.connect(agent).b2bPayWithSplit(
+          ethers.ZeroAddress, ONE_ETHER, ipCreator.address,
+          "ord-5", { value: ethers.parseEther("1.02") },
+        )
+      ).to.be.revertedWith("Zero merchant");
+    });
+
+    it("rejects self-pay", async function () {
+      await expect(
+        splitter.connect(agent).b2bPayWithSplit(
+          agent.address, ONE_ETHER, ipCreator.address,
+          "ord-6", { value: ethers.parseEther("1.02") },
+        )
+      ).to.be.revertedWith("Self-pay not allowed");
+    });
+
+    it("rejects zero merchant amount", async function () {
+      await expect(
+        splitter.connect(agent).b2bPayWithSplit(
+          merchant.address, 0n, ipCreator.address,
+          "ord-7", { value: 0n },
+        )
+      ).to.be.revertedWith("Zero merchant amount");
+    });
+
+    it("does NOT require merchant partner registration (open marketplace)", async function () {
+      const merchantAmount = ONE_ETHER;
+      const [, , total] = await splitter.quoteSplit(merchantAmount);
+      await expect(
+        splitter.connect(agent).b2bPayWithSplit(
+          merchant.address, merchantAmount, ipCreator.address,
+          "ord-8", { value: total },
+        )
+      ).to.not.be.reverted;
+    });
+
+    it("emits B2BPaymentWithSplit with full breakdown", async function () {
+      const merchantAmount = ONE_ETHER;
+      const [treasuryFee, creatorFee, total] = await splitter.quoteSplit(merchantAmount);
+      await expect(
+        splitter.connect(agent).b2bPayWithSplit(
+          merchant.address, merchantAmount, ipCreator.address,
+          "ord-9", { value: total },
+        )
+      )
+        .to.emit(splitter, "B2BPaymentWithSplit")
+        .withArgs(
+          agent.address, merchant.address, merchantAmount,
+          treasuryFee, creatorFee, ipCreator.address, "ord-9",
+        );
+    });
+
+    it("blocks while paused", async function () {
+      await splitter.pause();
+      const merchantAmount = ONE_ETHER;
+      const [, , total] = await splitter.quoteSplit(merchantAmount);
+      await expect(
+        splitter.connect(agent).b2bPayWithSplit(
+          merchant.address, merchantAmount, ipCreator.address,
+          "ord-10", { value: total },
+        )
+      ).to.be.revertedWith("Splitter is paused");
+      await splitter.unpause();
+    });
+
+    it("only owner can update treasury", async function () {
+      await expect(
+        splitter.connect(attacker).setTreasury(attacker.address)
+      ).to.be.reverted;
+      await splitter.setTreasury(merchant.address);
+      expect(await splitter.treasury()).to.equal(merchant.address);
+    });
+
+    it("only owner can update fees", async function () {
+      await expect(
+        splitter.connect(attacker).setFees(50, 5)
+      ).to.be.reverted;
+      await splitter.setFees(50, 5);
+      expect(await splitter.treasuryBps()).to.equal(50);
+      expect(await splitter.ipCreatorBps()).to.equal(5);
+    });
+
+    it("AiFinPayCore is unchanged — no b2bPayWithSplit on core", async function () {
+      // The whole point of the splitter is that core stays exactly as
+      // mainnet-deployed. Verify the new function is NOT on core.
+      expect(typeof core.b2bPayWithSplit).to.equal("undefined");
+      expect(typeof core.quoteSplit).to.equal("undefined");
+    });
+  });
+
 });
