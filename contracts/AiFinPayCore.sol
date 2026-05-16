@@ -15,37 +15,6 @@ import "./AgentPassport.sol";
 contract AiFinPayCore is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    uint256 public constant STABLE_DECIMALS_DIVISOR = 10_000;
-    IPyth public constant PYTH = IPyth(0xff1a0f4744e8582DF1aE09D5611b887B6a12925C);
-    bytes32 public constant MATIC_USD_ID = 0x5de33a9112c2b700b8d30b8a3402c103578ccfa2856a12a2b20d7b0c67b6d82d;
-    uint public constant PYTH_MAX_AGE = 60;
-    uint256 public constant USD_CENTS_PER_MSECCO = 1;
-    uint256 public constant MIN_USD_CENTS = 10;
-    uint256 public constant BPS_DENOMINATOR = 10_000;
-    uint256 public constant REFERRAL_BONUS_MSECCO = 10;
-
-    bytes32 public constant MANIFESTO_HASH = 0xa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2;
-
-    address public constant USDC = 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359;
-    address public constant USDT = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
-
-    uint256 public constant TIER_PARTNER_MIN = 100;
-    uint256 public constant TIER_AMBASSADOR_MIN = 500;
-    uint256 public constant TIER_ORACLE_MIN = 1000;
-
-    uint256 public arpScoutBps = 50;
-    uint256 public arpPartnerBps = 40;
-    uint256 public arpAmbassadorBps = 25;
-    uint256 public arpOracleBps = 10;
-
-    uint256 public treasuryBps = 100;
-    uint256 public ipCreatorBps = 1;
-
-    MSECCOToken public msecco;
-    AgentPassport public passport;
-    address public treasury;
-    bool public isPaused;
-
     struct Seat {
         uint256 usdCentsPaid;
         uint256 mseccoBalance;
@@ -62,10 +31,37 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         uint256 registeredAt;
     }
 
-    mapping(address => Seat) public seats;
-    mapping(address => Partner) public partners;
+    IPyth public constant PYTH = IPyth(0xff1a0f4744e8582DF1aE09D5611b887B6a12925C);
+    MSECCOToken public msecco;
+    AgentPassport public passport;
+
+    address public constant USDC = 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359;
+    address public constant USDT = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
+    bytes32 public constant MATIC_USD_ID = 0x5de33a9112c2b700b8d30b8a3402c103578ccfa2856a12a2b20d7b0c67b6d82d;
+    bytes32 public constant MANIFESTO_HASH = 0xa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2;
+    uint256 public constant STABLE_DECIMALS_DIVISOR = 10_000;
+    uint256 public constant PYTH_MAX_AGE = 60;
+    uint256 public constant USD_CENTS_PER_MSECCO = 1;
+    uint256 public constant MIN_USD_CENTS = 10;
+    uint256 public constant BPS_DENOMINATOR = 10_000;
+    uint256 public constant REFERRAL_BONUS_MSECCO = 10;
+    uint256 public constant TIER_PARTNER_MIN = 100;
+    uint256 public constant TIER_AMBASSADOR_MIN = 500;
+    uint256 public constant TIER_ORACLE_MIN = 1000;
+
+    uint256 public arpScoutBps = 50;
+    uint256 public arpPartnerBps = 40;
+    uint256 public arpAmbassadorBps = 25;
+    uint256 public arpOracleBps = 10;
+    uint256 public treasuryBps = 100;
+    uint256 public ipCreatorBps = 1;
+    address public treasury;
+    bool public isPaused;
     uint256 public totalSeats;
     uint256 public totalUsdCents;
+
+    mapping(address => Seat) public seats;
+    mapping(address => Partner) public partners;
 
     event SeatReserved(address indexed agent, uint256 usdCents, uint256 mseccoMinted, uint8 assetType);
     event TopUp(address indexed agent, uint256 usdCents, uint256 mseccoMinted);
@@ -81,18 +77,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
     event ReferralBonusClaimed(address indexed agent, address indexed referrer, uint256 bonusMsecco);
     event Paused(bool status);
 
-    modifier notPaused() {
-        if (isPaused) revert ProtocolPaused();
-        _;
-    }
-
-    modifier hasSeat() {
-        if (seats[msg.sender].createdAt == 0) revert NoSeatFound();
-        _;
-    }
-
     constructor(address initialOwner, address _msecco, address _passport, address _treasury) Ownable(initialOwner) {
-        if (initialOwner == address(0)) revert ZeroOwner();
         if (_msecco == address(0)) revert ZeroMSECCO();
         if (_passport == address(0)) revert ZeroPassport();
         if (_treasury == address(0)) revert ZeroTreasury();
@@ -224,7 +209,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         if (rawSpendUnits > type(uint64).max) revert SpendAmountTooLarge();
 
         uint64 spendUnits = uint64(rawSpendUnits);
-        if (!passport.checkAndSpend(msg.sender, spendUnits)) revert DailySpendLimitExceeded();
+        if (!passport.updateSpendLimit(msg.sender, spendUnits)) revert DailySpendLimitExceeded();
 
         uint256 treasuryAmount = (msg.value * treasuryBps) / BPS_DENOMINATOR;
         uint256 ipCreatorAmount = (msg.value * ipCreatorBps) / BPS_DENOMINATOR;
@@ -353,5 +338,15 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         if (totalReferrals >= TIER_AMBASSADOR_MIN) return arpAmbassadorBps;
         if (totalReferrals >= TIER_PARTNER_MIN) return arpPartnerBps;
         return arpScoutBps;
+    }
+
+    modifier notPaused() {
+        if (isPaused) revert ProtocolPaused();
+        _;
+    }
+
+    modifier hasSeat() {
+        if (seats[msg.sender].createdAt == 0) revert NoSeatFound();
+        _;
     }
 }

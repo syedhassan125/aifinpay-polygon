@@ -15,11 +15,10 @@ import "./errors/Errors.sol";
 contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
-    uint256 public constant BPS_DENOMINATOR = 10_000;
-    uint256 public constant MIN_PAYMENT = 100_000;
-
     address public constant USDC = 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359;
     address public constant USDT = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
+    uint256 public constant BPS_DENOMINATOR = 10_000;
+    uint256 public constant MIN_PAYMENT = 100_000;
 
     uint256 public treasuryBps = 100;
     uint256 public ipCreatorBps = 1;

@@ -28,25 +28,12 @@ contract AgentPassport is ERC721, Ownable {
     address public aifinpayCore;
     uint256 private _tokenIdCounter;
 
-    event CoreSet(address indexed core);
-
     mapping(address => uint256) public agentTokenId;
     mapping(uint256 => Passport) public passports;
 
-    modifier onlyCore() {
-        if (msg.sender != aifinpayCore) revert OnlyCore();
-        _;
-    }
+    event CoreSet(address indexed core);
 
     constructor(address initialOwner) ERC721("AiFinPay Agent Passport", "AIPASS") Ownable(initialOwner) {}
-
-    /// @notice Set the AiFinPay core contract address — one-time only
-    function setCore(address _core) external onlyOwner {
-        if (aifinpayCore != address(0)) revert CoreAlreadySet();
-        if (_core == address(0)) revert ZeroAddress();
-        aifinpayCore = _core;
-        emit CoreSet(_core);
-    }
 
     /// @notice Mint a passport for an agent — one per wallet
     function mintPassport(
@@ -74,6 +61,14 @@ contract AgentPassport is ERC721, Ownable {
         _safeMint(_agent, tokenId);
     }
 
+    /// @notice Set the AiFinPay core contract address — one-time only
+    function setCore(address _core) external onlyOwner {
+        if (aifinpayCore != address(0)) revert CoreAlreadySet();
+        if (_core == address(0)) revert ZeroAddress();
+        aifinpayCore = _core;
+        emit CoreSet(_core);
+    }
+
     /// @notice Update passport status — admin only via core
     function setStatus(address _agent, PassportStatus _status) external onlyCore {
         uint256 tokenId = agentTokenId[_agent];
@@ -82,7 +77,7 @@ contract AgentPassport is ERC721, Ownable {
     }
 
     /// @notice Check and update daily spend limit
-    function checkAndSpend(address _agent, uint64 _amount) external onlyCore returns (bool) {
+    function updateSpendLimit(address _agent, uint64 _amount) external onlyCore returns (bool) {
         uint256 tokenId = agentTokenId[_agent];
         if (tokenId == 0) revert NoPassport();
         Passport storage p = passports[tokenId];
@@ -121,5 +116,10 @@ contract AgentPassport is ERC721, Ownable {
             revert Soulbound();
         }
         return super._update(to, tokenId, auth);
+    }
+
+    modifier onlyCore() {
+        if (msg.sender != aifinpayCore) revert OnlyCore();
+        _;
     }
 }

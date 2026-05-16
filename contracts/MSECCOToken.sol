@@ -12,11 +12,6 @@ contract MSECCOToken is ERC20, Ownable {
 
     event CoreSet(address indexed core);
 
-    modifier onlyCore() {
-        if (msg.sender != aifinpayCore) revert OnlyCore();
-        _;
-    }
-
     constructor(address initialOwner) ERC20("mSECCO", "mSECCO") Ownable(initialOwner) {}
 
     /// @notice Set the AiFinPay core contract address — one-time only
@@ -53,5 +48,10 @@ contract MSECCOToken is ERC20, Ownable {
 
     function decimals() public pure override returns (uint8) {
         return 2;
+    }
+
+    modifier onlyCore() {
+        if (msg.sender != aifinpayCore) revert OnlyCore();
+        _;
     }
 }
