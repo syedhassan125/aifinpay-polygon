@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.35;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -8,7 +8,6 @@ import "./errors/Errors.sol";
 /// @title AgentPassport — On-chain identity NFT for AI agents (Polygon)
 /// @notice Each agent wallet gets one passport. Non-transferable after mint.
 contract AgentPassport is ERC721, Ownable {
-
     enum PassportStatus {
         BORN,
         ACTIVE,
@@ -20,9 +19,9 @@ contract AgentPassport is ERC721, Ownable {
         address ipCreator;
         bytes32 ipMetadata;
         PassportStatus status;
-        uint64  dailyLimit;
-        uint64  currentSpent;
-        uint64  lastResetDay;
+        uint64 dailyLimit;
+        uint64 currentSpent;
+        uint64 lastResetDay;
         uint256 bornAt;
     }
 
@@ -54,7 +53,7 @@ contract AgentPassport is ERC721, Ownable {
         address _agent,
         address _ipCreator,
         bytes32 _ipMetadata,
-        uint64  _dailyLimit
+        uint64 _dailyLimit
     ) external onlyCore returns (uint256 tokenId) {
         if (agentTokenId[_agent] != 0) revert PassportAlreadyExists();
 
@@ -63,13 +62,13 @@ contract AgentPassport is ERC721, Ownable {
 
         agentTokenId[_agent] = tokenId;
         passports[tokenId] = Passport({
-            ipCreator:    _ipCreator,
-            ipMetadata:   _ipMetadata,
-            status:       PassportStatus.BORN,
-            dailyLimit:   _dailyLimit,
+            ipCreator: _ipCreator,
+            ipMetadata: _ipMetadata,
+            status: PassportStatus.BORN,
+            dailyLimit: _dailyLimit,
             currentSpent: 0,
             lastResetDay: uint64(block.timestamp / 1 days),
-            bornAt:       block.timestamp
+            bornAt: block.timestamp
         });
 
         _safeMint(_agent, tokenId);

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.35;
 
 /// @title Pyth Pull Oracle Interface
 /// @notice Interface for Pyth Network pull oracle on Polygon
 interface IPyth {
     struct Price {
-        int64  price;
+        int64 price;
         uint64 conf;
-        int32  expo;
-        uint   publishTime;
+        int32 expo;
+        uint publishTime;
     }
 
     function getUpdateFee(bytes[] calldata updateData) external view returns (uint feeAmount);

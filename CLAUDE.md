@@ -6,8 +6,9 @@ x402 protocol: AI agents pay for services autonomously via HTTP 402 challenge/re
 Deployed on **Polygon Mainnet**.
 
 ## Stack
-- **Language**: Solidity ^0.8.20
+- **Language**: Solidity 0.8.35 (EVM Cancun)
 - **Framework**: OpenZeppelin (ERC20, ERC721, Ownable, ReentrancyGuard, SafeERC20)
+- **Build**: Hardhat + Bun
 - **Treasury**: Gnosis Safe 4-of-4 multisig (`0xD31d82c4b35DABaA2ad7023C89A78A052D1f3c8e`)
 - **Oracle**: Pyth Pull Oracle (MATIC/USD)
 
@@ -40,6 +41,14 @@ Deployed on **Polygon Mainnet**.
 - **LOW-001**: All ERC-20 transfers use `SafeERC20.safeTransferFrom()` — not raw `transferFrom()`
 
 ## Coding Rules
+
+### Style Conventions
+- **Function arguments**: Use `_` prefix (e.g., `_amount`, `_token`, `_agent`)
+- **NatSpec**: Use `@param _argName` format matching the underscore-prefixed parameter
+- **Indentation**: 4 spaces for Solidity
+- **Line length**: 120 characters max for Solidity
+
+### Solidity Best Practices
 - Always use `SafeERC20` for token transfers — never raw `IERC20.transfer()` or `transferFrom()`
 - `STABLE_DECIMALS_DIVISOR = 10_000` must be used for any USDC/USDT → mSECCO conversion
 - Agent Passport is **soulbound** — `_beforeTokenTransfer` blocks all transfers (mint only)
@@ -47,12 +56,37 @@ Deployed on **Polygon Mainnet**.
 - Keep Checks-Effects-Interactions order in all state-mutating functions
 - All fund-touching functions must check `notPaused` modifier
 
+### Prettier Config (`.prettierrc`)
+```json
+{
+  "plugins": ["prettier-plugin-solidity"],
+  "overrides": [{
+    "files": "*.sol",
+    "options": {
+      "tabWidth": 4,
+      "printWidth": 120,
+      "trailingComma": "none"
+    }
+  }]
+}
+```
+
 ## Build & Test
 ```bash
-npm install
-npx hardhat compile
-npx hardhat test
-npx hardhat run scripts/deploy.js --network polygon
+# Install dependencies
+bun install
+
+# Compile contracts
+bun run hardhat compile
+
+# Run tests
+bun run hardhat test
+
+# Deploy to Polygon
+bun run hardhat run scripts/deploy.ts --network polygon
+
+# Deploy to Amoy testnet
+bun run hardhat run scripts/deploy.ts --network amoy
 ```
 
 ## Related Contracts

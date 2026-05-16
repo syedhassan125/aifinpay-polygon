@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.35;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -33,7 +33,7 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
         uint256 merchantAmount,
         uint256 treasuryAmount,
         uint256 ipCreatorAmount,
-        string  orderId
+        string orderId
     );
     event SplitUpdated(uint256 treasuryBps, uint256 ipCreatorBps);
     event TreasuryUpdated(address newTreasury);
@@ -49,7 +49,7 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     /// @param _orderId     Off-chain order reference
     function payMatic(
         address payable _merchant,
-        address         _ipCreator,
+        address _ipCreator,
         string calldata _orderId
     ) external payable nonReentrant whenNotPaused {
         if (msg.value == 0) revert ZeroMatic();
@@ -57,14 +57,14 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
 
         (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _split(msg.value);
 
-        (bool s1,) = _merchant.call{value: merchantAmt}("");
+        (bool s1, ) = _merchant.call{value: merchantAmt}("");
         if (!s1) revert MerchantTransferFailed();
 
-        (bool s2,) = payable(treasury).call{value: treasuryAmt}("");
+        (bool s2, ) = payable(treasury).call{value: treasuryAmt}("");
         if (!s2) revert TreasuryTransferFailed();
 
         if (ipAmt > 0 && _ipCreator != address(0)) {
-            (bool s3,) = payable(_ipCreator).call{value: ipAmt}("");
+            (bool s3, ) = payable(_ipCreator).call{value: ipAmt}("");
             if (!s3) revert IPCreatorTransferFailed();
         }
 
@@ -74,10 +74,10 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     /// @notice Pay a merchant in USDC or USDT. Automatically splits on-chain.
     /// @dev Caller must approve this contract for `amount` before calling.
     function payStable(
-        address         _token,
-        uint256         _amount,
-        address         _merchant,
-        address         _ipCreator,
+        address _token,
+        uint256 _amount,
+        address _merchant,
+        address _ipCreator,
         string calldata _orderId
     ) external nonReentrant whenNotPaused {
         if (_token != USDC && _token != USDT) revert UnsupportedToken();
@@ -97,15 +97,19 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     }
 
     /// @notice Emergency pause — halts all payments instantly
-    function pause() external onlyOwner { _pause(); }
+    function pause() external onlyOwner {
+        _pause();
+    }
 
     /// @notice Resume payments after an emergency pause
-    function unpause() external onlyOwner { _unpause(); }
+    function unpause() external onlyOwner {
+        _unpause();
+    }
 
     function setSplit(uint256 _treasuryBps, uint256 _ipCreatorBps) external onlyOwner {
         if (_treasuryBps + _ipCreatorBps >= BPS_DENOMINATOR) revert FeesExceed100();
         if (_treasuryBps < 1) revert TreasuryFeeTooLow();
-        treasuryBps  = _treasuryBps;
+        treasuryBps = _treasuryBps;
         ipCreatorBps = _ipCreatorBps;
         emit SplitUpdated(_treasuryBps, _ipCreatorBps);
     }
@@ -116,11 +120,7 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
         emit TreasuryUpdated(_treasury);
     }
 
-    function _split(uint256 _total) internal view returns (
-        uint256 merchantAmt,
-        uint256 treasuryAmt,
-        uint256 ipAmt
-    ) {
+    function _split(uint256 _total) internal view returns (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) {
         if (_total < MIN_PAYMENT) revert PaymentBelowMinimum();
 
         treasuryAmt = (_total * treasuryBps) / BPS_DENOMINATOR;
