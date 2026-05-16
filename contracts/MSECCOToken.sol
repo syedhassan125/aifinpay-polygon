@@ -10,12 +10,15 @@ contract MSECCOToken is ERC20, Ownable {
 
     address public aifinpayCore;
 
+    event CoreSet(address indexed core);
+
     modifier onlyCore() {
         require(msg.sender == aifinpayCore, "Only AiFinPay core");
         _;
     }
 
     constructor(address initialOwner) ERC20("mSECCO", "mSECCO") {
+        require(initialOwner != address(0), "Zero owner");
         _transferOwnership(initialOwner);
     }
 
@@ -24,6 +27,7 @@ contract MSECCOToken is ERC20, Ownable {
         require(aifinpayCore == address(0), "Core already set");
         require(_core != address(0), "Zero address");
         aifinpayCore = _core;
+        emit CoreSet(_core);
     }
 
     /// @notice Mint mSECCO credits — only callable by AiFinPay core

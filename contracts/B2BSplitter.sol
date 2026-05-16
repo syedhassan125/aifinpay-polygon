@@ -16,6 +16,7 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
 
     // ── Constants ──────────────────────────────────────────────────────────────
     uint256 public constant BPS_DENOMINATOR = 10_000;
+    uint256 public constant MIN_PAYMENT = 100_000; // Min 100k wei → at bps=1, fee ≥ 10 wei
 
     // ── Stablecoins (Polygon mainnet) ──────────────────────────────────────────
     address public constant USDC = 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359;
@@ -45,6 +46,7 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
 
     // ── Constructor ────────────────────────────────────────────────────────────
     constructor(address initialOwner, address _treasury) {
+        require(initialOwner != address(0), "Zero owner");
         require(_treasury != address(0), "Zero treasury");
         _transferOwnership(initialOwner);
         treasury = _treasury;
@@ -135,8 +137,20 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
         uint256 treasuryAmt,
         uint256 ipAmt
     ) {
-        treasuryAmt = (total * treasuryBps)  / BPS_DENOMINATOR;
-        ipAmt       = (total * ipCreatorBps) / BPS_DENOMINATOR;
+        require(total > MIN_PAYMENT, "MIN_PAYMENT not met");
+
+        treasuryAmt = (total * treasuryBps) / BPS_DENOMINATOR;
+        ipAmt = (total * ipCreatorBps) / BPS_DENOMINATOR;
+
+        if (treasuryBps > 0) {
+            require(treasuryAmt > 0, "Payment too small for treasury fee");
+        }
+
+        if (ipCreatorBps > 0) {
+            require(ipAmt > 0, "Payment too small for royalty");
+        }
+
         merchantAmt = total - treasuryAmt - ipAmt;
+        require(merchantAmt > 0, "Payment too small for merchant");
     }
 }

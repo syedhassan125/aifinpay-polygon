@@ -95,6 +95,10 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
     event PassportMinted(address indexed agent, address ipCreator);
     event B2BPayment(address indexed agent, address indexed merchant, uint256 amount, string orderId);
     event PartnerRegistered(address indexed partner, string name);
+    event PartnerDeactivated(address indexed partner);
+    event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
+    event AgentVerifiedB2B(address indexed agent);
+    event AgentSuspendedB2B(address indexed agent);
     event FeesUpdated(uint256 treasuryBps, uint256 ipCreatorBps);
     event ArpFeesUpdated(uint256 scout, uint256 partner, uint256 ambassador, uint256 oracle);
     event ReferralBonusClaimed(address indexed agent, address indexed referrer, uint256 bonusMsecco);
@@ -117,7 +121,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         address _passport,
         address _treasury
     ) {
-        // EVM-MED-002: validate all critical addresses at construction time
+        require(initialOwner != address(0), "Zero owner");
         require(_msecco   != address(0), "Zero msecco");
         require(_passport != address(0), "Zero passport");
         require(_treasury != address(0), "Zero treasury");
@@ -233,12 +237,15 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
 
     // ── Partner Registry ───────────────────────────────────────────────────────
     function registerPartner(address partner, string calldata name) external onlyOwner {
+        require(partner != address(0), "Zero partner");
+        require(bytes(name).length != 0, "Empty partner name");
         partners[partner] = Partner({ active: true, name: name, registeredAt: block.timestamp });
         emit PartnerRegistered(partner, name);
     }
 
     function deactivatePartner(address partner) external onlyOwner {
         partners[partner].active = false;
+        emit PartnerDeactivated(partner);
     }
 
     // ── B2B Pay ────────────────────────────────────────────────────────────────
@@ -251,9 +258,11 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         require(partners[merchant].active, "Partner not active");
         require(passport.isVerifiedB2B(msg.sender), "Agent not Verified_B2B");
 
-        // EVM-HIGH-002: guard against micro-payment truncation bypassing daily limit
-        uint64 spendUnits = uint64(msg.value / 1e16);
-        require(spendUnits > 0, "Payment below minimum unit (0.01 MATIC)");
+        uint256 rawSpendUnits = msg.value / 1e16;
+        require(rawSpendUnits > 0, "Payment below minimum unit (0.01 MATIC)");
+        require(rawSpendUnits <= type(uint64).max, "Spend amount too large");
+
+        uint64 spendUnits = uint64(rawSpendUnits);
         require(passport.checkAndSpend(msg.sender, spendUnits), "Daily spend limit exceeded");
 
         uint256 treasuryAmount  = (msg.value * treasuryBps) / BPS_DENOMINATOR;
@@ -320,7 +329,9 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
 
     function setTreasury(address _treasury) external onlyOwner {
         require(_treasury != address(0), "Zero address");
+        address oldTreasury = treasury;
         treasury = _treasury;
+        emit TreasuryUpdated(oldTreasury, _treasury);
     }
 
     function setFees(uint256 _treasuryBps, uint256 _ipCreatorBps) external onlyOwner {
@@ -350,11 +361,13 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
 
     function verifyAgentB2B(address agent) external onlyOwner {
         passport.setStatus(agent, 2);
+        emit AgentVerifiedB2B(agent);
     }
 
     // EVM-REC-002: mirror function to suspend a verified agent directly via core
     function suspendAgentB2B(address agent) external onlyOwner {
         passport.setStatus(agent, 3); // STATUS_SUSPENDED
+        emit AgentSuspendedB2B(agent);
     }
 
     // ── Internal ───────────────────────────────────────────────────────────────

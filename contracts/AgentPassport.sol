@@ -26,6 +26,8 @@ contract AgentPassport is ERC721, Ownable {
     address public aifinpayCore;
     uint256 private _tokenIdCounter;
 
+    event CoreSet(address indexed core);
+
     // agent wallet → token ID
     mapping(address => uint256) public agentTokenId;
     // token ID → passport data
@@ -37,6 +39,7 @@ contract AgentPassport is ERC721, Ownable {
     }
 
     constructor(address initialOwner) ERC721("AiFinPay Agent Passport", "AIPASS") {
+        require(initialOwner != address(0), "Zero owner");
         _transferOwnership(initialOwner);
     }
 
@@ -45,6 +48,7 @@ contract AgentPassport is ERC721, Ownable {
         require(aifinpayCore == address(0), "Core already set");
         require(_core != address(0), "Zero address");
         aifinpayCore = _core;
+        emit CoreSet(_core);
     }
 
     /// @notice Mint a passport for an agent — one per wallet
