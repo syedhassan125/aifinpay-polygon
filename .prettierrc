@@ -1,6 +1,5 @@
 {
   "semi": true,
-  "trailingComma": "all",
   "singleQuote": false,
   "printWidth": 100,
   "tabWidth": 2,
@@ -9,9 +8,9 @@
     {
       "files": "*.sol",
       "options": {
-        "parser": "solidity-parse",
         "tabWidth": 4,
-        "printWidth": 120
+        "printWidth": 120,
+        "trailingComma": "none"
       }
     }
   ]
