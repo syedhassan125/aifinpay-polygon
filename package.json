@@ -1,22 +1,29 @@
 {
-  "name": "polygon-contract",
+  "name": "aifinpay-polygon",
   "version": "1.0.0",
-  "description": "",
+  "description": "AiFinPay Polygon Smart Contracts",
   "main": "index.js",
   "directories": {
     "test": "test"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.ts --network polygon",
+    "deploy:testnet": "hardhat run scripts/deploy.ts --network amoy",
+    "lint:sol": "prettier --write 'contracts/**/*.sol'",
+    "lint:check": "prettier --check 'contracts/**/*.sol'"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "module",
+  "keywords": ["aifinpay", "polygon", "solidity", "erc20", "erc721"],
+  "author": "AiFinPay",
+  "license": "MIT",
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^6.1.2",
-    "@openzeppelin/contracts": "^4.9.6",
-    "dotenv": "^17.4.2",
-    "hardhat": "^2.28.6"
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "^5.1.0",
+    "dotenv": "^16.4.7",
+    "hardhat": "^2.22.19",
+    "prettier": "^3.4.2",
+    "prettier-plugin-solidity": "^1.4.2",
+    "typescript": "^5.7.3"
   }
 }

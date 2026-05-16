@@ -3,3 +3,7 @@ artifacts/
 cache/
 .env
 *.env.local
+.idea/
+.vscode/
+.DS_Store
+*.log

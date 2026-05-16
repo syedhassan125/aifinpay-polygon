@@ -1,4 +1,4 @@
-const { ethers } = require("hardhat");
+import { ethers } from "hardhat";
 
 const MSECCO   = "0x83936231c80fdF17eC2786BD7DcF09014552182B";
 const PASSPORT = "0x66fFe91eE0B80f386EB07F97354e2889CD162185";
@@ -9,8 +9,7 @@ async function main() {
   console.log("Wiring with:", deployer.address);
 
   const feeData = await ethers.provider.getFeeData();
-  // Use 2x the current maxFeePerGas to ensure it goes through
-  const gasPrice = feeData.gasPrice * 2n;
+  const gasPrice = feeData.gasPrice! * 2n;
   console.log("Gas price:", ethers.formatUnits(gasPrice, "gwei"), "gwei");
 
   const MSECCOToken   = await ethers.getContractFactory("MSECCOToken");
@@ -29,7 +28,6 @@ async function main() {
   await tx2.wait();
   console.log("   Done. Tx:", tx2.hash);
 
-  // Verify
   const coreFromMsecco   = await msecco.aifinpayCore();
   const coreFromPassport = await passport.aifinpayCore();
   console.log("\n=== VERIFICATION ===");

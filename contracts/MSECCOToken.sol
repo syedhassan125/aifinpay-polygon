@@ -7,25 +7,21 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 /// @title mSECCO — AiFinPay Compute Credit Token (Polygon)
 /// @notice 1 USD = 100 mSECCO. No withdraw — credits are locked in-protocol.
 contract MSECCOToken is ERC20, Ownable {
-
     address public aifinpayCore;
 
     event CoreSet(address indexed core);
 
     modifier onlyCore() {
-        require(msg.sender == aifinpayCore, "Only AiFinPay core");
+        if (msg.sender != aifinpayCore) revert OnlyCore();
         _;
     }
 
-    constructor(address initialOwner) ERC20("mSECCO", "mSECCO") {
-        require(initialOwner != address(0), "Zero owner");
-        _transferOwnership(initialOwner);
-    }
+    constructor(address initialOwner) ERC20("mSECCO", "mSECCO") Ownable(initialOwner) {}
 
     /// @notice Set the AiFinPay core contract address — one-time only
     function setCore(address _core) external onlyOwner {
-        require(aifinpayCore == address(0), "Core already set");
-        require(_core != address(0), "Zero address");
+        if (aifinpayCore != address(0)) revert CoreAlreadySet();
+        if (_core == address(0)) revert ZeroAddress();
         aifinpayCore = _core;
         emit CoreSet(_core);
     }
@@ -42,16 +38,16 @@ contract MSECCOToken is ERC20, Ownable {
 
     /// @notice Transfers are disabled — mSECCO is non-transferable, protocol-locked
     function transfer(address, uint256) public pure override returns (bool) {
-        revert("mSECCO is non-transferable");
+        revert NonTransferable();
     }
 
     function transferFrom(address, address, uint256) public pure override returns (bool) {
-        revert("mSECCO is non-transferable");
+        revert NonTransferable();
     }
 
-    /// @notice EVM-INFO-002: block approvals — no point approving a non-transferable token
+    /// @notice Block approvals — no point approving a non-transferable token
     function approve(address, uint256) public pure override returns (bool) {
-        revert("mSECCO is non-transferable");
+        revert NonTransferable();
     }
 
     function decimals() public pure override returns (uint8) {
