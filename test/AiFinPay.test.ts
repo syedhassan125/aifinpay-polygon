@@ -178,14 +178,14 @@ describe("AiFinPay Protocol — Full Test Suite (v1.1 Pyth Oracle)", function ()
       const fragment = core.interface.getFunction("reserveSeatMatic");
       const paramNames = fragment.inputs.map(i => i.name);
       expect(paramNames).to.not.include("maticUsdPrice");
-      expect(paramNames).to.include("priceUpdateData");
+      expect(paramNames).to.include("_priceUpdateData");
     });
 
     it("topUpMatic signature has no maticUsdPrice parameter", async function () {
       const fragment = core.interface.getFunction("topUpMatic");
       const paramNames = fragment.inputs.map(i => i.name);
       expect(paramNames).to.not.include("maticUsdPrice");
-      expect(paramNames).to.include("priceUpdateData");
+      expect(paramNames).to.include("_priceUpdateData");
     });
   });
 

@@ -28,13 +28,13 @@ contract MSECCOToken is ERC20, Ownable {
     }
 
     /// @notice Mint mSECCO credits — only callable by AiFinPay core
-    function mint(address to, uint256 amount) external onlyCore {
-        _mint(to, amount);
+    function mint(address _to, uint256 _amount) external onlyCore {
+        _mint(_to, _amount);
     }
 
     /// @notice Burn mSECCO credits when spent — only callable by AiFinPay core
-    function burn(address from, uint256 amount) external onlyCore {
-        _burn(from, amount);
+    function burn(address _from, uint256 _amount) external onlyCore {
+        _burn(_from, _amount);
     }
 
     /// @notice Transfers are disabled — mSECCO is non-transferable, protocol-locked
@@ -52,6 +52,6 @@ contract MSECCOToken is ERC20, Ownable {
     }
 
     function decimals() public pure override returns (uint8) {
-        return 2; // 1.00 mSECCO = 100 units (matches Solana: 1 USD = 100 mSECCO)
+        return 2;
     }
 }

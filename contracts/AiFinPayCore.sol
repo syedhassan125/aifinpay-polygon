@@ -102,27 +102,27 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         if (_msecco == address(0)) revert ZeroMSECCO();
         if (_passport == address(0)) revert ZeroPassport();
         if (_treasury == address(0)) revert ZeroTreasury();
-        msecco   = MSECCOToken(_msecco);
+        msecco = MSECCOToken(_msecco);
         passport = AgentPassport(_passport);
         treasury = _treasury;
     }
 
-    /// @param agreementHash   Must equal MANIFESTO_HASH
-    /// @param priceUpdateData Fresh price update bytes from Pyth Hermes API
-    /// @param referrer        Optional referrer address (pass address(0) for none)
+    /// @param _agreementHash   Must equal MANIFESTO_HASH
+    /// @param _priceUpdateData Fresh price update bytes from Pyth Hermes API
+    /// @param _referrer        Optional referrer address (pass address(0) for none)
     function reserveSeatMatic(
-        bytes32 agreementHash,
-        bytes[] calldata priceUpdateData,
-        address referrer
+        bytes32 _agreementHash,
+        bytes[] calldata _priceUpdateData,
+        address _referrer
     ) external payable notPaused nonReentrant {
-        if (agreementHash != MANIFESTO_HASH) revert InvalidAgreementHash();
+        if (_agreementHash != MANIFESTO_HASH) revert InvalidAgreementHash();
         if (msg.value == 0) revert ZeroMatic();
 
-        uint pythFee = PYTH.getUpdateFee(priceUpdateData);
+        uint pythFee = PYTH.getUpdateFee(_priceUpdateData);
         if (msg.value <= pythFee) revert InsufficientMaticForFee();
         uint256 maticPayment = msg.value - pythFee;
 
-        PYTH.updatePriceFeeds{value: pythFee}(priceUpdateData);
+        PYTH.updatePriceFeeds{value: pythFee}(_priceUpdateData);
 
         IPyth.Price memory p = PYTH.getPriceNoOlderThan(MATIC_USD_ID, PYTH_MAX_AGE);
         if (p.price <= 0) revert InvalidPythPrice();
@@ -131,7 +131,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         uint256 usdCents = (maticPayment * uint256(uint64(p.price))) / 1e24;
         if (usdCents < MIN_USD_CENTS) revert BelowMinimum();
 
-        _createOrUpdateSeat(msg.sender, usdCents, 0, referrer);
+        _createOrUpdateSeat(msg.sender, usdCents, 0, _referrer);
 
         (bool sent,) = treasury.call{value: maticPayment}("");
         if (!sent) revert TreasuryTransferFailed();
@@ -139,31 +139,31 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         emit SeatReserved(msg.sender, usdCents, usdCents, 0);
     }
 
-    function reserveSeatStable(
-        bytes32 agreementHash,
-        address token,
-        uint256 amount,
-        address referrer
+function reserveSeatStable(
+        bytes32 _agreementHash,
+        address _token,
+        uint256 _amount,
+        address _referrer
     ) external notPaused nonReentrant {
-        if (agreementHash != MANIFESTO_HASH) revert InvalidAgreementHash();
-        if (token != USDC && token != USDT) revert UnsupportedToken();
+        if (_agreementHash != MANIFESTO_HASH) revert InvalidAgreementHash();
+        if (_token != USDC && _token != USDT) revert UnsupportedToken();
 
-        uint256 usdCents = amount / STABLE_DECIMALS_DIVISOR;
+        uint256 usdCents = _amount / STABLE_DECIMALS_DIVISOR;
         if (usdCents < MIN_USD_CENTS) revert BelowMinimum();
 
-        _createOrUpdateSeat(msg.sender, usdCents, token == USDC ? 1 : 2, referrer);
+        _createOrUpdateSeat(msg.sender, usdCents, _token == USDC ? 1 : 2, _referrer);
 
-        IERC20(token).safeTransferFrom(msg.sender, treasury, amount);
+        IERC20(_token).safeTransferFrom(msg.sender, treasury, _amount);
 
-        emit SeatReserved(msg.sender, usdCents, usdCents, token == USDC ? 1 : 2);
+        emit SeatReserved(msg.sender, usdCents, usdCents, _token == USDC ? 1 : 2);
     }
 
-    function topUpMatic(bytes[] calldata priceUpdateData) external payable notPaused nonReentrant hasSeat {
-        uint pythFee = PYTH.getUpdateFee(priceUpdateData);
+    function topUpMatic(bytes[] calldata _priceUpdateData) external payable notPaused nonReentrant hasSeat {
+        uint pythFee = PYTH.getUpdateFee(_priceUpdateData);
         if (msg.value <= pythFee) revert InsufficientMaticForFee();
         uint256 maticPayment = msg.value - pythFee;
 
-        PYTH.updatePriceFeeds{value: pythFee}(priceUpdateData);
+        PYTH.updatePriceFeeds{value: pythFee}(_priceUpdateData);
 
         IPyth.Price memory p = PYTH.getPriceNoOlderThan(MATIC_USD_ID, PYTH_MAX_AGE);
         if (p.price <= 0) revert InvalidPythPrice();
@@ -183,9 +183,9 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         emit TopUp(msg.sender, usdCents, usdCents);
     }
 
-    function topUpStable(address token, uint256 amount) external notPaused nonReentrant hasSeat {
-        if (token != USDC && token != USDT) revert UnsupportedToken();
-        uint256 usdCents = amount / STABLE_DECIMALS_DIVISOR;
+    function topUpStable(address _token, uint256 _amount) external notPaused nonReentrant hasSeat {
+        if (_token != USDC && _token != USDT) revert UnsupportedToken();
+        uint256 usdCents = _amount / STABLE_DECIMALS_DIVISOR;
         if (usdCents < MIN_USD_CENTS) revert BelowMinimum();
 
         seats[msg.sender].usdCentsPaid  += usdCents;
@@ -193,35 +193,35 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         totalUsdCents += usdCents;
         msecco.mint(msg.sender, usdCents);
 
-        IERC20(token).safeTransferFrom(msg.sender, treasury, amount);
+        IERC20(_token).safeTransferFrom(msg.sender, treasury, _amount);
 
         emit TopUp(msg.sender, usdCents, usdCents);
     }
 
-    function mintPassport(address ipCreator, bytes32 ipMetadata, uint64 dailyLimit) external notPaused nonReentrant hasSeat {
-        passport.mintPassport(msg.sender, ipCreator, ipMetadata, dailyLimit);
-        emit PassportMinted(msg.sender, ipCreator);
+    function mintPassport(address _ipCreator, bytes32 _ipMetadata, uint64 _dailyLimit) external notPaused nonReentrant hasSeat {
+        passport.mintPassport(msg.sender, _ipCreator, _ipMetadata, _dailyLimit);
+        emit PassportMinted(msg.sender, _ipCreator);
     }
 
-    function registerPartner(address partner, string calldata name) external onlyOwner {
-        if (partner == address(0)) revert ZeroPartner();
-        if (bytes(name).length == 0) revert EmptyPartnerName();
-        partners[partner] = Partner({ active: true, name: name, registeredAt: block.timestamp });
-        emit PartnerRegistered(partner, name);
+    function registerPartner(address _partner, string calldata _name) external onlyOwner {
+        if (_partner == address(0)) revert ZeroPartner();
+        if (bytes(_name).length == 0) revert EmptyPartnerName();
+        partners[_partner] = Partner({ active: true, name: _name, registeredAt: block.timestamp });
+        emit PartnerRegistered(_partner, _name);
     }
 
-    function deactivatePartner(address partner) external onlyOwner {
-        partners[partner].active = false;
-        emit PartnerDeactivated(partner);
+    function deactivatePartner(address _partner) external onlyOwner {
+        partners[_partner].active = false;
+        emit PartnerDeactivated(_partner);
     }
 
     /// @notice Atomic split: merchant gets majority / treasury gets treasuryBps / IP creator gets ipCreatorBps
     function b2bPay(
-        address payable merchant,
-        string calldata orderId
+        address payable _merchant,
+        string calldata _orderId
     ) external payable notPaused nonReentrant {
         if (msg.value == 0) revert ZeroMatic();
-        if (!partners[merchant].active) revert PartnerNotActive();
+        if (!partners[_merchant].active) revert PartnerNotActive();
         if (!passport.isVerifiedB2B(msg.sender)) revert AgentNotVerifiedB2B();
 
         uint256 rawSpendUnits = msg.value / 1e16;
@@ -239,7 +239,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
 
         address ipCreator = passport.getPassport(msg.sender).ipCreator;
 
-        (bool s1,) = merchant.call{value: merchantAmount}("");
+        (bool s1,) = _merchant.call{value: merchantAmount}("");
         if (!s1) revert MerchantTransferFailed();
 
         (bool s2,) = treasury.call{value: treasuryAmount}("");
@@ -250,7 +250,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
             if (!s3) revert IPCreatorTransferFailed();
         }
 
-        emit B2BPayment(msg.sender, merchant, msg.value, orderId);
+        emit B2BPayment(msg.sender, _merchant, msg.value, _orderId);
     }
 
     /// @notice Agent claims mSECCO bonus based on their referral tier.
@@ -321,42 +321,42 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         emit ArpFeesUpdated(_scoutBps, _partnerBps, _ambassadorBps, _oracleBps);
     }
 
-    function verifyAgentB2B(address agent) external onlyOwner {
-        passport.setStatus(agent, AgentPassport.PassportStatus.VERIFIED_B2B);
-        emit AgentVerifiedB2B(agent);
+    function verifyAgentB2B(address _agent) external onlyOwner {
+        passport.setStatus(_agent, AgentPassport.PassportStatus.VERIFIED_B2B);
+        emit AgentVerifiedB2B(_agent);
     }
 
-    function suspendAgentB2B(address agent) external onlyOwner {
-        passport.setStatus(agent, AgentPassport.PassportStatus.SUSPENDED);
-        emit AgentSuspendedB2B(agent);
+    function suspendAgentB2B(address _agent) external onlyOwner {
+        passport.setStatus(_agent, AgentPassport.PassportStatus.SUSPENDED);
+        emit AgentSuspendedB2B(_agent);
     }
 
     function _createOrUpdateSeat(
-        address agent,
-        uint256 usdCents,
-        uint8   assetType,
-        address referrer
+        address _agent,
+        uint256 _usdCents,
+        uint8   _assetType,
+        address _referrer
     ) internal {
-        if (seats[agent].createdAt == 0) {
-            seats[agent] = Seat({
-                usdCentsPaid:   usdCents,
-                mseccoBalance:  usdCents,
-                assetType:      assetType,
+        if (seats[_agent].createdAt == 0) {
+            seats[_agent] = Seat({
+                usdCentsPaid:   _usdCents,
+                mseccoBalance:  _usdCents,
+                assetType:      _assetType,
                 createdAt:      block.timestamp,
                 totalReferrals: 0,
-                referrer:       referrer,
+                referrer:       _referrer,
                 referralClaimed: false
             });
             totalSeats++;
-            if (referrer != address(0) && referrer != agent && seats[referrer].createdAt != 0) {
-                seats[referrer].totalReferrals++;
+            if (_referrer != address(0) && _referrer != _agent && seats[_referrer].createdAt != 0) {
+                seats[_referrer].totalReferrals++;
             }
         } else {
-            seats[agent].usdCentsPaid  += usdCents;
-            seats[agent].mseccoBalance += usdCents;
+            seats[_agent].usdCentsPaid  += _usdCents;
+            seats[_agent].mseccoBalance += _usdCents;
         }
-        totalUsdCents += usdCents;
-        msecco.mint(agent, usdCents);
+        totalUsdCents += _usdCents;
+        msecco.mint(_agent, _usdCents);
     }
 
     function _arpFeeBps(uint256 totalReferrals) internal view returns (uint256) {

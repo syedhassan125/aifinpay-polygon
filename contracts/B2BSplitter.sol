@@ -44,56 +44,56 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     }
 
     /// @notice Pay a merchant in MATIC. Automatically splits on-chain.
-    /// @param merchant    Merchant wallet address
-    /// @param ipCreator   IP creator address (receives royalty). Pass address(0) to skip.
-    /// @param orderId     Off-chain order reference
+    /// @param _merchant    Merchant wallet address
+    /// @param _ipCreator   IP creator address (receives royalty). Pass address(0) to skip.
+    /// @param _orderId     Off-chain order reference
     function payMatic(
-        address payable merchant,
-        address         ipCreator,
-        string calldata orderId
+        address payable _merchant,
+        address         _ipCreator,
+        string calldata _orderId
     ) external payable nonReentrant whenNotPaused {
         if (msg.value == 0) revert ZeroMatic();
-        if (merchant == address(0)) revert ZeroMerchant();
+        if (_merchant == address(0)) revert ZeroMerchant();
 
         (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _split(msg.value);
 
-        (bool s1,) = merchant.call{value: merchantAmt}("");
+        (bool s1,) = _merchant.call{value: merchantAmt}("");
         if (!s1) revert MerchantTransferFailed();
 
         (bool s2,) = payable(treasury).call{value: treasuryAmt}("");
         if (!s2) revert TreasuryTransferFailed();
 
-        if (ipAmt > 0 && ipCreator != address(0)) {
-            (bool s3,) = payable(ipCreator).call{value: ipAmt}("");
+        if (ipAmt > 0 && _ipCreator != address(0)) {
+            (bool s3,) = payable(_ipCreator).call{value: ipAmt}("");
             if (!s3) revert IPCreatorTransferFailed();
         }
 
-        emit Payment(msg.sender, merchant, address(0), msg.value, merchantAmt, treasuryAmt, ipAmt, orderId);
+        emit Payment(msg.sender, _merchant, address(0), msg.value, merchantAmt, treasuryAmt, ipAmt, _orderId);
     }
 
     /// @notice Pay a merchant in USDC or USDT. Automatically splits on-chain.
     /// @dev Caller must approve this contract for `amount` before calling.
     function payStable(
-        address         token,
-        uint256         amount,
-        address         merchant,
-        address         ipCreator,
-        string calldata orderId
+        address         _token,
+        uint256         _amount,
+        address         _merchant,
+        address         _ipCreator,
+        string calldata _orderId
     ) external nonReentrant whenNotPaused {
-        if (token != USDC && token != USDT) revert UnsupportedToken();
-        if (amount == 0) revert ZeroAmount();
-        if (merchant == address(0)) revert ZeroMerchant();
+        if (_token != USDC && _token != USDT) revert UnsupportedToken();
+        if (_amount == 0) revert ZeroAmount();
+        if (_merchant == address(0)) revert ZeroMerchant();
 
-        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _split(amount);
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _split(_amount);
 
-        IERC20(token).safeTransferFrom(msg.sender, merchant, merchantAmt);
-        IERC20(token).safeTransferFrom(msg.sender, treasury, treasuryAmt);
+        IERC20(_token).safeTransferFrom(msg.sender, _merchant, merchantAmt);
+        IERC20(_token).safeTransferFrom(msg.sender, treasury, treasuryAmt);
 
-        if (ipAmt > 0 && ipCreator != address(0)) {
-            IERC20(token).safeTransferFrom(msg.sender, ipCreator, ipAmt);
+        if (ipAmt > 0 && _ipCreator != address(0)) {
+            IERC20(_token).safeTransferFrom(msg.sender, _ipCreator, ipAmt);
         }
 
-        emit Payment(msg.sender, merchant, token, amount, merchantAmt, treasuryAmt, ipAmt, orderId);
+        emit Payment(msg.sender, _merchant, _token, _amount, merchantAmt, treasuryAmt, ipAmt, _orderId);
     }
 
     /// @notice Emergency pause — halts all payments instantly
@@ -116,20 +116,20 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
         emit TreasuryUpdated(_treasury);
     }
 
-    function _split(uint256 total) internal view returns (
+    function _split(uint256 _total) internal view returns (
         uint256 merchantAmt,
         uint256 treasuryAmt,
         uint256 ipAmt
     ) {
-        if (total < MIN_PAYMENT) revert PaymentBelowMinimum();
+        if (_total < MIN_PAYMENT) revert PaymentBelowMinimum();
 
-        treasuryAmt = (total * treasuryBps) / BPS_DENOMINATOR;
-        ipAmt = (total * ipCreatorBps) / BPS_DENOMINATOR;
+        treasuryAmt = (_total * treasuryBps) / BPS_DENOMINATOR;
+        ipAmt = (_total * ipCreatorBps) / BPS_DENOMINATOR;
 
         if (treasuryBps > 0 && treasuryAmt == 0) revert PaymentTooSmallForTreasury();
         if (ipCreatorBps > 0 && ipAmt == 0) revert PaymentTooSmallForRoyalty();
 
-        merchantAmt = total - treasuryAmt - ipAmt;
+        merchantAmt = _total - treasuryAmt - ipAmt;
         if (merchantAmt == 0) revert PaymentTooSmallForMerchant();
     }
 }

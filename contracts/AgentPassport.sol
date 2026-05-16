@@ -51,40 +51,40 @@ contract AgentPassport is ERC721, Ownable {
 
     /// @notice Mint a passport for an agent — one per wallet
     function mintPassport(
-        address agent,
-        address ipCreator,
-        bytes32 ipMetadata,
-        uint64  dailyLimit
+        address _agent,
+        address _ipCreator,
+        bytes32 _ipMetadata,
+        uint64  _dailyLimit
     ) external onlyCore returns (uint256 tokenId) {
-        if (agentTokenId[agent] != 0) revert PassportAlreadyExists();
+        if (agentTokenId[_agent] != 0) revert PassportAlreadyExists();
 
         _tokenIdCounter++;
         tokenId = _tokenIdCounter;
 
-        agentTokenId[agent] = tokenId;
+        agentTokenId[_agent] = tokenId;
         passports[tokenId] = Passport({
-            ipCreator:    ipCreator,
-            ipMetadata:   ipMetadata,
+            ipCreator:    _ipCreator,
+            ipMetadata:   _ipMetadata,
             status:       PassportStatus.BORN,
-            dailyLimit:   dailyLimit,
+            dailyLimit:   _dailyLimit,
             currentSpent: 0,
             lastResetDay: uint64(block.timestamp / 1 days),
             bornAt:       block.timestamp
         });
 
-        _safeMint(agent, tokenId);
+        _safeMint(_agent, tokenId);
     }
 
     /// @notice Update passport status — admin only via core
-    function setStatus(address agent, PassportStatus status) external onlyCore {
-        uint256 tokenId = agentTokenId[agent];
+    function setStatus(address _agent, PassportStatus _status) external onlyCore {
+        uint256 tokenId = agentTokenId[_agent];
         if (tokenId == 0) revert NoPassport();
-        passports[tokenId].status = status;
+        passports[tokenId].status = _status;
     }
 
     /// @notice Check and update daily spend limit
-    function checkAndSpend(address agent, uint64 amount) external onlyCore returns (bool) {
-        uint256 tokenId = agentTokenId[agent];
+    function checkAndSpend(address _agent, uint64 _amount) external onlyCore returns (bool) {
+        uint256 tokenId = agentTokenId[_agent];
         if (tokenId == 0) revert NoPassport();
         Passport storage p = passports[tokenId];
 
@@ -94,23 +94,23 @@ contract AgentPassport is ERC721, Ownable {
             p.lastResetDay = today;
         }
 
-        if (p.currentSpent + amount > p.dailyLimit) return false;
-        p.currentSpent += amount;
+        if (p.currentSpent + _amount > p.dailyLimit) return false;
+        p.currentSpent += _amount;
         return true;
     }
 
-    function getPassport(address agent) external view returns (Passport memory) {
-        uint256 tokenId = agentTokenId[agent];
+    function getPassport(address _agent) external view returns (Passport memory) {
+        uint256 tokenId = agentTokenId[_agent];
         if (tokenId == 0) revert NoPassport();
         return passports[tokenId];
     }
 
-    function hasPassport(address agent) external view returns (bool) {
-        return agentTokenId[agent] != 0;
+    function hasPassport(address _agent) external view returns (bool) {
+        return agentTokenId[_agent] != 0;
     }
 
-    function isVerifiedB2B(address agent) external view returns (bool) {
-        uint256 tokenId = agentTokenId[agent];
+    function isVerifiedB2B(address _agent) external view returns (bool) {
+        uint256 tokenId = agentTokenId[_agent];
         if (tokenId == 0) return false;
         return passports[tokenId].status == PassportStatus.VERIFIED_B2B;
     }
